@@ -200,6 +200,13 @@ def process_excel(uploaded_file):
                 agent_id = '202' + agent_id[3:]
             sensitive_values['Agent'] = agent_id
 
+        if current_prod == 'SUP3':
+            if agent_id.startswith('250'):
+                agent_id = '252' + agent_id[3:]
+            elif agent_id.startswith('201'):
+                agent_id = '202' + agent_id[3:]
+            sensitive_values['Agent'] = agent_id
+
         if current_prod == 'EVO13' and agent_id not in allowed_agents:
             df.at[index, 'Product'] = 'XEC13'
             current_prod = 'XEC13'
