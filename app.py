@@ -135,7 +135,16 @@ def process_excel(uploaded_file):
         'XVC37': {'new_code': 'YCC37', 'price': '1350'},
         'EVO13': {'new_code': 'YCE13', 'price': '500'}
     }
-
+# Pricing Logic الجديد خاص بـ 250610
+    pricing_logic_250610 = {
+        'XCV13': {'new_code': 'APT13', 'price': '600'},
+        'XVC13': {'new_code': 'APT13', 'price': '600'},
+        'XEC13': {'new_code': 'APS13', 'price': '500'},
+        'XVM25': {'new_code': 'APT25', 'price': '1000'},
+        'XVC37': {'new_code': 'APT37', 'price': '1350'},
+        'EVO13': {'new_code': 'APS13', 'price': '500'}
+    }
+    
     sensitive_columns = ['Agent', 'Code', 'Mobile']
 
     for index, row in df.iterrows():
