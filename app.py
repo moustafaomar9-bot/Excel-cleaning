@@ -97,14 +97,10 @@ def process_excel(uploaded_file):
 
     allowed_agents = ['250218', '250712', '250610', '250602', '250205', '250907']
 
-    # توحيد التواريخ
+    # توحيد التواريخ (تم تصحيح الخطأ)
     for col in ['Delivery Date', 'Call Date', 'Birth Day']:
         if col in df.columns:
-            df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce').strftime('%d/%m/%Y') 
-        if pd.notna(x) and str(x).strip() != "" and pd.to_datetime(x, errors='coerce') is not pd.NaT
-        else ""
-)
-
+            df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce').strftime('%d/%m/%Y') if pd.notna(x) and str(x).strip() != "" else "")
 
     # قواعد الـ Confirmation Agent
     agents_rules = [
@@ -127,6 +123,7 @@ def process_excel(uploaded_file):
         r'n\s*o'
     ]
 
+    # Pricing Logic القديم (باقي الأجنتات)
     pricing_logic = {
         'XCV13': {'new_code': 'YCC13', 'price': '600'},
         'XVC13': {'new_code': 'YCC13', 'price': '600'},
@@ -135,7 +132,8 @@ def process_excel(uploaded_file):
         'XVC37': {'new_code': 'YCC37', 'price': '1350'},
         'EVO13': {'new_code': 'YCE13', 'price': '500'}
     }
-# Pricing Logic الجديد خاص بـ 250610
+
+    # Pricing Logic الجديد خاص بـ 250610
     pricing_logic_250610 = {
         'XCV13': {'new_code': 'APT13', 'price': '600'},
         'XVC13': {'new_code': 'APT13', 'price': '600'},
@@ -144,7 +142,7 @@ def process_excel(uploaded_file):
         'XVC37': {'new_code': 'APT37', 'price': '1350'},
         'EVO13': {'new_code': 'APS13', 'price': '500'}
     }
-    
+
     sensitive_columns = ['Agent', 'Code', 'Mobile']
 
     for index, row in df.iterrows():
@@ -219,7 +217,7 @@ def process_excel(uploaded_file):
         if current_prod == 'EVO13' and agent_id not in allowed_agents:
             df.at[index, 'Product'] = 'XEC13'
             current_prod = 'XEC13'
-        elif current_prod == 'XVC13'and agent_id not in allowed_agents:
+        elif current_prod == 'XVC13' and agent_id not in allowed_agents:
             df.at[index, 'Product'] = 'XCV13'
             current_prod = 'XCV13'
 
@@ -244,7 +242,7 @@ def process_excel(uploaded_file):
             comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*مريهان', '', comment, flags=re.IGNORECASE)
         elif any(name in normalized for name in ['ماريهان', 'مريهان', 'مايهان']):
             df.at[index, 'Confirmation Agent'] = '004' if agent_id == '201120' else '050'
-            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*(ماريهان|مريهان|مايهان)', '',comment, flags=re.IGNORECASE)
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*(ماريهان|مريهان|مايهان)', '', comment, flags=re.IGNORECASE)
         elif any(word in normalized for word in ['فاطمهمحمود','فاطمهمسعداوي','فاطمهسعداوي']):
             df.at[index, 'Confirmation Agent'] = '004' if agent_id == '250610' else '018'
             comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*فاطم[هة]\s*(محمود|سعداو[يى])', '', comment, flags=re.IGNORECASE)
@@ -253,8 +251,7 @@ def process_excel(uploaded_file):
             comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*مرو[هة]\s*مصطف[يى]', '', comment, flags=re.IGNORECASE)
         elif re.search(r'سار[هةا]*\s*احمد', normalized):
             df.at[index, 'Confirmation Agent'] = '017'
-            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*سار[هةا]*\s*احمد', '', comment,flags=re.IGNORECASE)
-
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*سار[هةا]*\s*احمد', '', comment, flags=re.IGNORECASE)
 
         # تطبيق بقية قواعد الـ agents
         for pattern, code in agents_rules:
@@ -289,9 +286,17 @@ def process_excel(uploaded_file):
 
         df.at[index, 'Delivery Comments'] = re.sub(r'\s+', ' ', comment).strip()
 
-        # Pricing Logic
+        # =====================================================
+        # Pricing Logic - لكل Agent pricing_logic الخاص بيه
+        # =====================================================
         if agent_id in allowed_agents and current_prod in pricing_logic:
-            new_info = pricing_logic[current_prod]
+            if agent_id == '250610':
+                # استخدم الـ pricing_logic الخاص بـ 250610
+                new_info = pricing_logic_250610[current_prod]
+            else:
+                # استخدم الـ pricing_logic العادي لباقي الأجنتات
+                new_info = pricing_logic[current_prod]
+            
             df.at[index, 'Product'] = new_info['new_code']
             if 'Total Amount' in df.columns:
                 df.at[index, 'Total Amount'] = new_info['price']
@@ -352,79 +357,77 @@ else:
                                 worksheet.write(row_num, col_idx, str(value).strip(), red_format)
                 return out.getvalue()
 
+            # تعريف الأعمدة المطلوبة لكل نوع
+            ren_columns = [
+                "Card Holder Name","Address","Mobile","Home Phone",
+                "Office Phone1","Office Phone2","Fax Number","E-Mail","Birth Day",
+                "Delivery Date","Delivery Time","Agent",
+                "Delivery Comments","Call Date","District",
+                "Gender","Product","Bonus Months",
+                "Card Number","Confirmation Agent",
+                "Alico Name","ID Number"
+            ]
 
-        # تعريف الأعمدة المطلوبة لكل نوع
-        ren_columns = [
-            "Card Holder Name","Address","Mobile","Home Phone",
-            "Office Phone1","Office Phone2","Fax Number","E-Mail","Birth Day",
-            "Delivery Date","Delivery Time","Agent",
-            "Delivery Comments","Call Date","District",
-            "Gender","Product","Bonus Months",
-            "Card Number","Confirmation Agent",
-            "Alico Name","ID Number"
-        ]
+            new_columns = [
+                "Card Holder Name","Address","Mobile","Home Phone",
+                "Office Phone1","Office Phone2","Fax Number","E-Mail",
+                "Birth Day","Delivery Date","Delivery Time","Agent",
+                "Delivery Comments","GP Code","Parent Code",
+                "Call Date","District","Gender","Product",
+                "Bonus Months","Confirmation Agent",
+                "ID Number","Alico Name"
+            ]
 
-        new_columns = [
-            "Card Holder Name","Address","Mobile","Home Phone",
-            "Office Phone1","Office Phone2","Fax Number","E-Mail",
-            "Birth Day","Delivery Date","Delivery Time","Agent",
-            "Delivery Comments","GP Code","Parent Code",
-            "Call Date","District","Gender","Product",
-            "Bonus Months","Confirmation Agent",
-            "ID Number","Alico Name"
-        ]
+            df_ren = result_df[
+                result_df["Card Number"].notna() & 
+                (result_df["Card Number"].astype(str).str.strip() != "")
+            ].reindex(columns=ren_columns)
 
-        df_ren = result_df[
-            result_df["Card Number"].notna() & 
-            (result_df["Card Number"].astype(str).str.strip() != "")
-        ].reindex(columns=ren_columns)
+            df_new = result_df[
+                result_df["Card Number"].isna() | 
+                (result_df["Card Number"].astype(str).str.strip() == "")
+            ].reindex(columns=new_columns)
 
-        df_new = result_df[
-            result_df["Card Number"].isna() | 
-            (result_df["Card Number"].astype(str).str.strip() == "")
-        ].reindex(columns=new_columns)
+            if 'new_downloaded' not in st.session_state:
+                st.session_state.new_downloaded = False
+            if 'ren_downloaded' not in st.session_state:
+                st.session_state.ren_downloaded = False
 
-        if 'new_downloaded' not in st.session_state:
-            st.session_state.new_downloaded = False
-        if 'ren_downloaded' not in st.session_state:
-            st.session_state.ren_downloaded = False
+            st.markdown("---")
+            st.subheader("📥 روابط تحميل الملفات المنفصلة")
 
-        st.markdown("---")
-        st.subheader("📥 روابط تحميل الملفات المنفصلة")
+            col1, col2 = st.columns(2)
 
-        col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("### 🆕 New Clients")
+                if st.session_state.new_downloaded:
+                    st.success("✅ تم تحميل شيت الـ NEW")
+                else:
+                    st.warning("⚠️ شيت الـ NEW لم يُحمل بعد")
 
-        with col1:
-            st.markdown("### 🆕 New Clients")
-            if st.session_state.new_downloaded:
-                st.success("✅ تم تحميل شيت الـ NEW")
-            else:
-                st.warning("⚠️ شيت الـ NEW لم يُحمل بعد")
+                st.download_button(
+                    label="⬇️ Download NEW Sheet",
+                    data=convert_to_excel(df_new),
+                    file_name="New_Records.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    on_click=lambda: st.session_state.update({"new_downloaded": True}),
+                    key="btn_new"
+                )
 
-            st.download_button(
-                label="⬇️ Download NEW Sheet",
-                data=convert_to_excel(df_new),
-                file_name="New_Records.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                on_click=lambda: st.session_state.update({"new_downloaded": True}),
-                key="btn_new"
-            )
+            with col2:
+                st.markdown("### 🔄 Renewal Clients")
+                if st.session_state.ren_downloaded:
+                    st.success("✅ تم تحميل شيت الـ RENEWAL")
+                else:
+                    st.warning("⚠️ شيت الـ RENEWAL لم يُحمل بعد")
 
-        with col2:
-            st.markdown("### 🔄 Renewal Clients")
-            if st.session_state.ren_downloaded:
-                st.success("✅ تم تحميل شيت الـ RENEWAL")
-            else:
-                st.warning("⚠️ شيت الـ RENEWAL لم يُحمل بعد")
-
-            st.download_button(
-                label="⬇️ Download RENEWAL Sheet",
-                data=convert_to_excel(df_ren),
-                file_name="Renewal_Records.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                on_click=lambda: st.session_state.update({"ren_downloaded": True}),
-                key="btn_ren"
-            )
-
+                st.download_button(
+                    label="⬇️ Download RENEWAL Sheet",
+                    data=convert_to_excel(df_ren),
+                    file_name="Renewal_Records.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    on_click=lambda: st.session_state.update({"ren_downloaded": True}),
+                    key="btn_ren"
+                )
 
 st.markdown("<div class='footer'>🚀 Enterprise Excel Automation Dashboard</div>", unsafe_allow_html=True)
