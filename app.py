@@ -115,7 +115,7 @@ def process_excel(uploaded_file):
     # ✅ agents_rules - مرتبة من الأكثر تحديداً للأقل
     agents_rules = [
         (r'(تم\s*عمل\s*)?(كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ميس|مس)?\s*نشو[هةويى]\s*(بدر)?', '060'),
-        (r'(ا.?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)سار[هةا]*(\s+احمد)?',                        '017'),
+        (r'(ا.?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)ا?سار[هةا]*(\s+احمد)?',                      '017'),
         (r'(ا.?م.?ض.?ا.?ء?\s*)ند[يىه]\s*مصطف[يى]',                                          '004'),
         (r'(أمضاء|امضاء)\s+ند[ىيه]',                                                          '004'),
         (r'(أمضاء|امضاء)\s+خلود',                                                             '004'),
@@ -269,11 +269,11 @@ def process_excel(uploaded_file):
             code = '004' if agent_id == '250610' else '018'
             set_agent_and_clean(code, SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])')
 
-        # 7) ساره احمد
+        # 7) ساره احمد (بيقبل اساره كخطأ إملائي)
         if confirmation_agent is None and re.search(
-            SIG + r'سار[هةا]*\s*احمد', comment, re.IGNORECASE
+            SIG + r'ا?سار[هةا]*\s*احمد', comment, re.IGNORECASE
         ):
-            set_agent_and_clean('017', SIG + r'سار[هةا]*\s*احمد')
+            set_agent_and_clean('017', SIG + r'ا?سار[هةا]*\s*احمد')
 
         # 8) امضاء السيلز / امضائي (بعد الأسماء المحددة)
         if confirmation_agent is None:
