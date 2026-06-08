@@ -12,15 +12,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # =====================================================
-# Authentication Logic (نظام الدخول)
+# 2. Authentication Logic (نظام الدخول)
 # =====================================================
+# يمكنك تعديل اليوزرات هنا
 USERS = {
     "admin": {"password": "123", "role": "admin"},
-    "mali":  {"password": "456", "role": "mali"},
+    "mali": {"password": "456", "role": "mali"},
     "Donia": {"password": "963", "role": "Donia"},
-    "boda":  {"password": "789", "role": "user"}
+    "boda": {"password": "789", "role": "user"}
 }
 
 if 'logged_in' not in st.session_state:
@@ -36,6 +36,7 @@ def login_page():
                 username = st.text_input("اسم المستخدم")
                 password = st.text_input("كلمة المرور", type="password")
                 submit = st.form_submit_button("دخول")
+
                 if submit:
                     if username in USERS and USERS[username]["password"] == password:
                         st.session_state.logged_in = True
@@ -51,9 +52,8 @@ def login_page():
 st.markdown("""
 <style>
     .main-title { font-size: 38px; font-weight: 800; text-align: center; color: #1f2937; }
-    .sub-title  { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; }
-    .card { background: #ffffff; padding: 20px; border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); transition: 0.3s; }
+    .sub-title { text-align: center; font-size: 18px; color: #6b7280; margin-bottom: 30px; }
+    .card { background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); transition: 0.3s; }
     .card:hover { transform: translateY(-5px); }
     .footer { text-align: center; color: #9ca3af; margin-top: 40px; font-size: 14px; }
 </style>
@@ -69,17 +69,6 @@ def normalize_arabic(text):
     text = re.sub(r'[^\u0600-\u06FF]', '', text)
     return text
 
-def post_clean_comment(comment):
-    """
-    شيل أي بقايا من كلمة 'امضاء' بعد معالجة الكونفيرم:
-    - امضاء + حرف/كلمة ≤3 حروف عربية (جزء ناقص من امضاء)
-    - امضاء لوحدها
-    """
-    comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
-    comment = re.sub(r'\bا\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
-    comment = re.sub(r'\s+', ' ', comment).strip()
-    return comment
-
 # =====================================================
 # Core Processing Logic
 # =====================================================
@@ -88,14 +77,17 @@ def process_excel(uploaded_file):
         df = pd.read_excel(uploaded_file, dtype=str)
         df.columns = df.columns.str.strip()
 
+        # إضافة أعمدة أساسية لو مش موجودة
         for col in ['Alico Name', 'GP Code', 'Parent Code']:
             if col not in df.columns:
                 df[col] = ""
 
+        # تنظيف بعض الأعمدة
         for col in ['Sup Data Source Type', 'Alico Name']:
             if col in df.columns:
                 df[col] = df[col].str.replace("'", "", regex=False).fillna("").str.strip()
 
+        # لو فيه عمود "Id" ننسخه لـ "ID Number"
         if 'Id' in df.columns and 'ID Number' not in df.columns:
             df['ID Number'] = df['Id']
 
@@ -105,21 +97,22 @@ def process_excel(uploaded_file):
 
     allowed_agents = ['250218', '250712', '250610', '250602', '250205', '250907']
 
+    # توحيد التواريخ (تم تصحيح الخطأ)
     for col in ['Delivery Date', 'Call Date', 'Birth Day']:
         if col in df.columns:
-            df[col] = df[col].apply(
-                lambda x: pd.to_datetime(x, errors='coerce').strftime('%d/%m/%Y')
-                if pd.notna(x) and str(x).strip() != "" else ""
-            )
+            df[col] = df[col].apply(lambda x: pd.to_datetime(x, errors='coerce').strftime('%d/%m/%Y') if pd.notna(x) and str(x).strip() != "" else "")
 
-    # ✅ agents_rules - مرتبة من الأكثر تحديداً للأقل
+    # قواعد الـ Confirmation Agent
     agents_rules = [
         (r'(تم\s*عمل\s*)?(كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ميس|مس)?\s*نشو[هةويى]\s*(بدر)?', '060'),
-        (r'(ا.?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)سار[هةا]*(\s+احمد)?',                        '017'),
-        (r'(ا.?م.?ض.?ا.?ء?\s*)ند[يىه]\s*مصطف[يى]',                                          '004'),
-        (r'(أمضاء|امضاء)\s+ند[ىيه]',                                                          '004'),
-        (r'(أمضاء|امضاء)\s+خلود',                                                             '004'),
-        (r'NADA|nada',                                                                         '004'),
+        (r'امضاء\s+سار[هة](\s+احمد)?', '017'),
+        (r'مضاء\s+سار[هة](\s+احمد)?', '017'),
+        (r'أمضاء\s+سار[هة](\s+احمد)?', '017'),
+        (r'أمضاء\s+ند[ىي]', '004'),
+        (r'امضاء\s+ند[ىي]', '004'),
+        (r'امضاء\s+خلود', '004'),
+        (r'NADA|nada', '004'),
+        (r'امضاء\s+ند[يى]\s+مصطف[يى]', '004'),
     ]
 
     advanced_cleaning = [
@@ -130,7 +123,7 @@ def process_excel(uploaded_file):
         r'n\s*o'
     ]
 
-    # Pricing Logic العادي (باقي الأجنتات)
+    # Pricing Logic القديم (باقي الأجنتات)
     pricing_logic = {
         'XCV13': {'new_code': 'YCC13', 'price': '600'},
         'XVC13': {'new_code': 'YCC13', 'price': '600'},
@@ -140,7 +133,7 @@ def process_excel(uploaded_file):
         'EVO13': {'new_code': 'YCE13', 'price': '500'}
     }
 
-    # Pricing Logic خاص بـ 250610
+    # Pricing Logic الجديد خاص بـ 250610
     pricing_logic_250610 = {
         'XCV13': {'new_code': 'APT13', 'price': '600'},
         'XVC13': {'new_code': 'APT13', 'price': '600'},
@@ -153,52 +146,74 @@ def process_excel(uploaded_file):
     sensitive_columns = ['Agent', 'Code', 'Mobile']
 
     for index, row in df.iterrows():
-
         # حفظ البيانات الحساسة
-        sensitive_values = {
-            col: str(row[col]).strip() if col in df.columns else ''
-            for col in sensitive_columns
-        }
-
-        # تنظيف أعمدة التليفون
+        sensitive_values = {col: str(row[col]).strip() if col in df.columns else '' for col in sensitive_columns}
+        # =====================================================
+        # تنظيف أعمدة التليفونات من أي مسافات قبل أو بعد الرقم
+        # =====================================================
         phone_columns = ['Mobile', 'Home Phone', 'Office Phone1', 'Office Phone2', 'Fax Number']
-        for col in phone_columns:
-            if col in df.columns and pd.notna(row.get(col)):
-                df.at[index, col] = str(row.get(col)).strip()
 
-        # استخراج الكومنت وتنظيفه
+        for col in phone_columns:
+            if col in df.columns:
+                value = row.get(col)
+                if pd.notna(value):
+                    clean_value = str(value).strip()
+                    df.at[index, col] = clean_value
+
         comment = '' if pd.isna(row.get('Delivery Comments')) else str(row.get('Delivery Comments')).strip()
+
+        # إزالة علامة ' من الكومنت
         comment = comment.replace("'", "")
 
-        agent_id   = sensitive_values.get('Agent', '')
+        # ===== Sales Signature ONLY (Safe Add-on) =====
+        sales_signature_pattern = r'\b(امضائي|أمضائي|امضائى|أمضائى|بأمضتى|امضاء السيلز|أمضاء السيلز)\b'
+
+        if re.search(sales_signature_pattern, comment):
+            df.at[index, 'Confirmation Agent'] = '004'
+            comment = re.sub(sales_signature_pattern, '', comment).strip()
+
+        agent_id = sensitive_values.get('Agent', '')
         current_prod = str(row.get('Product', '')).strip()
         sup_source_val = str(row.get('Sup Data Source Type', '')).strip()
 
-        # ===== Alico Name + GP Code + Parent Code =====
+        # تعيين Alico Name + تعديل GP Code وParent Code لو Rec
         if sup_source_val != "":
             df.at[index, 'Alico Name'] = sup_source_val
         else:
             apply_keywords = r'(apply|ابلاى|ابلاي|rec\s*apply|rec\s*app)'
             if re.search(apply_keywords, comment, re.IGNORECASE):
-                df.at[index, 'Alico Name']   = 'Apply'
-                df.at[index, 'GP Code']      = '355'
-                df.at[index, 'Parent Code']  = '006'
+                df.at[index, 'Alico Name'] = 'Apply'
+                df.at[index, 'GP Code'] = '355'
+                df.at[index, 'Parent Code'] = '006'
                 comment = re.sub(apply_keywords, '', comment, flags=re.IGNORECASE).strip()
             else:
-                df.at[index, 'Alico Name']  = 'Rec'
-                df.at[index, 'GP Code']     = '250'
+                df.at[index, 'Alico Name'] = 'Rec'
+                # ✨ إضافة جديدة
+                df.at[index, 'GP Code'] = '250'
                 df.at[index, 'Parent Code'] = '004'
 
-        # ===== تعديل Agent للمنتجات SUP =====
-        for prod in ['SUP6', 'SUPP6', 'SUP3']:
-            if current_prod == prod:
-                if agent_id.startswith('250'):
-                    agent_id = '252' + agent_id[3:]
-                elif agent_id.startswith('201'):
-                    agent_id = '202' + agent_id[3:]
-                sensitive_values['Agent'] = agent_id
+        # تعديل agent في بعض الحالات
+        if current_prod == 'SUP6':
+            if agent_id.startswith('250'):
+                agent_id = '252' + agent_id[3:]
+            elif agent_id.startswith('201'):
+                agent_id = '202' + agent_id[3:]
+            sensitive_values['Agent'] = agent_id
 
-        # ===== تعديل المنتج لغير الأجنتات المسموح بيهم =====
+        if current_prod == 'SUPP6':
+            if agent_id.startswith('250'):
+                agent_id = '252' + agent_id[3:]
+            elif agent_id.startswith('201'):
+                agent_id = '202' + agent_id[3:]
+            sensitive_values['Agent'] = agent_id
+
+        if current_prod == 'SUP3':
+            if agent_id.startswith('250'):
+                agent_id = '252' + agent_id[3:]
+            elif agent_id.startswith('201'):
+                agent_id = '202' + agent_id[3:]
+            sensitive_values['Agent'] = agent_id
+
         if current_prod == 'EVO13' and agent_id not in allowed_agents:
             df.at[index, 'Product'] = 'XEC13'
             current_prod = 'XEC13'
@@ -206,134 +221,82 @@ def process_excel(uploaded_file):
             df.at[index, 'Product'] = 'XCV13'
             current_prod = 'XCV13'
 
-        # =====================================================
-        # Confirmation Agent Logic
-        # ✅ بنستخدم متغير واحد ونوقف عند أول match
-        # =====================================================
-        confirmation_agent = None
+        # معالجة Confirmation Agent للأسماء العربية
         normalized = normalize_arabic(comment)
 
-        def set_agent_and_clean(agent_code, pattern_to_remove):
-            """يحط الكود ويشيل الباترن من الكومنت"""
-            nonlocal comment, confirmation_agent
-            confirmation_agent = agent_code
-            comment = re.sub(pattern_to_remove, '', comment, flags=re.IGNORECASE).strip()
+        if any(name in normalized for name in ['مروهمحمد', 'مروةمحمد', 'موره محمد'.replace(" ", "")]):
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '250602' else '034'
+            comment = re.sub(
+        r'(تم\s*عمل\s*كونفيرم\s*)?'
+        r'(ا.?م.?ض.?ا.?ء?\s*)?'
+        r'(مرو[هة]|موره)\s*محمد', '',
+            comment, flags=re.IGNORECASE)
+        elif 'مروه' in normalized or 'مروة' in normalized:
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '250602' else '034'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*مرو[هة]?', '', comment, flags=re.IGNORECASE)
+        elif 'يوسف' in normalized:
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '250920' else '025'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*يوسف(\s*ماجد)?', '', comment, flags=re.IGNORECASE)
+        elif 'مريهان' in normalized:
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '201120' else '050'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*مريهان', '', comment, flags=re.IGNORECASE)
+        elif any(name in normalized for name in ['ماريهان', 'مريهان', 'مايهان']):
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '201120' else '050'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*(ماريهان|مريهان|مايهان)', '', comment, flags=re.IGNORECASE)
+        elif any(word in normalized for word in ['فاطمهمحمود','فاطمهمسعداوي','فاطمهسعداوي']):
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '250610' else '018'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*فاطم[هة]\s*(محمود|سعداو[يى])', '', comment, flags=re.IGNORECASE)
+        elif 'مروهمصطفى' in normalized or 'مروةمصطفى' in normalized:
+            df.at[index, 'Confirmation Agent'] = '004' if agent_id == '201171' else '016'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*مرو[هة]\s*مصطف[يى]', '', comment, flags=re.IGNORECASE)
+        elif re.search(r'سار[هةا]*\s*احمد', normalized):
+            df.at[index, 'Confirmation Agent'] = '017'
+            comment = re.sub(r'ا.?م.?ض.?ا.?ء?\s*سار[هةا]*\s*احمد', '', comment, flags=re.IGNORECASE)
 
-        # -------------------------------------------------------
-        # كل الباترنات دي بتشتغل على comment الأصلي (فيه مسافات)
-        # ✅ \s* بين كل كلمة عشان يتعامل مع المسافات الزيادة
-        # -------------------------------------------------------
+        # تطبيق بقية قواعد الـ agents
+        for pattern, code in agents_rules:
+            if re.search(pattern, comment, re.IGNORECASE):
+                df.at[index, 'Confirmation Agent'] = code
+                comment = re.sub(pattern, '', comment, flags=re.IGNORECASE)
 
-        # 1) مروه / مروة + محمد (الأكثر تحديداً أولاً)
-        if confirmation_agent is None and any(
-            name in normalized for name in ['مروهمحمد', 'مروةمحمد', 'مورهمحمد']
-        ):
-            code = '004' if agent_id == '250602' else '034'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(مرو[هة]|موره)\s*محمد'
-            )
-
-        # 2) مروه / مروة + مصطفى (قبل مروه لوحدها عشان أكثر تحديداً)
-        if confirmation_agent is None and (
-            'مروهمصطفى' in normalized or 'مروةمصطفى' in normalized
-        ):
-            code = '004' if agent_id == '201171' else '016'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?مرو[هة]\s*مصطف[يى]'
-            )
-
-        # 3) مروه / مروة (بدون محمد أو مصطفى)
-        if confirmation_agent is None and ('مروه' in normalized or 'مروة' in normalized):
-            code = '004' if agent_id == '250602' else '034'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?مرو[هة]'
-            )
-
-        # 4) يوسف
-        if confirmation_agent is None and 'يوسف' in normalized:
-            code = '004' if agent_id == '250920' else '025'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?يوسف(\s*ماجد)?'
-            )
-
-        # 4) مريهان / ماريهان / مايهان
-        if confirmation_agent is None and any(
-            name in normalized for name in ['مريهان', 'ماريهان', 'مايهان']
-        ):
-            code = '004' if agent_id == '201120' else '050'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ماريهان|مريهان|مايهان)'
-            )
-
-        # 6) فاطمه / فاطمة محمود / سعداوي
-        if confirmation_agent is None and any(
-            word in normalized for word in ['فاطمهمحمود', 'فاطمةمحمود', 'فاطمهمسعداوي', 'فاطمهسعداوي',
-                                             'فاطمةمسعداوي', 'فاطمةسعداوي']
-        ):
-            code = '004' if agent_id == '250610' else '018'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])'
-            )
-
-        # 7) ساره احمد
-        if confirmation_agent is None and re.search(r'سار[هةا]*\s*احمد', normalized):
-            set_agent_and_clean(
-                '017',
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?سار[هةا]*\s*احمد'
-            )
-
-        # 8) امضاء السيلز / امضائي (بعد الأسماء المحددة)
-        if confirmation_agent is None:
-            sales_signature_pattern = r'(امضائي|أمضائي|امضائى|أمضائى|بأمضتى|امضاء\s*السيلز|أمضاء\s*السيلز)'
-            if re.search(sales_signature_pattern, comment, re.IGNORECASE):
-                set_agent_and_clean('004', sales_signature_pattern)
-
-        # 9) agents_rules - ✅ بتوقف عند أول match
-        if confirmation_agent is None:
-            for pattern, code in agents_rules:
-                if re.search(pattern, comment, re.IGNORECASE):
-                    set_agent_and_clean(code, pattern)
-                    break  # ✅ مهم - وقف بعد أول match
-
-        # تطبيق الـ confirmation agent لو اتحدد
-        if confirmation_agent is not None:
-            df.at[index, 'Confirmation Agent'] = confirmation_agent
-
-        # ===== كارت سنة ونصف / 18 شهر =====
+        # ===== التحقق من كارت سنة ونصف / 18 شهر =====
         comment_lower = comment.lower()
-        if any(phrase in comment_lower for phrase in [
-            'كارت سنة ونصف', 'كارت سنه ونصف', 'كارت سنه ونص',
-            '18 شهر', 'سنة ونص', 'سنه ونص', 'سنة ونصف',
-            'سنه ونصف', 'كارت 18 شهر'
-        ]):
+        if ('كارت سنة ونصف' in comment_lower 
+            or 'كارت سنه ونصف' in comment_lower
+            or 'كارت سنه ونص' in comment_lower
+            or '18 شهر' in comment_lower
+            or 'سنة ونص' in comment_lower
+            or 'سنه ونص' in comment_lower
+            or 'سنة ونصف' in comment_lower 
+            or 'سنه ونصف' in comment_lower   
+            or 'كارت 18 شهر' in comment_lower):
+
             sup_source = str(row.get('Sup Data Source Type', '')).lower()
+
             match = re.search(r'(\d{1,2})', sup_source)
-            if match and int(match.group(1)) <= 24:
-                if 'Product' in df.columns:
-                    df.at[index, 'Product'] = 'REF18'
+            if match:
+                year_num = int(match.group(1))
+                if year_num <= 24:
+                    if 'Product' in df.columns:
+                        df.at[index, 'Product'] = 'REF18'
 
         # Advanced Cleaning
         for p in advanced_cleaning:
             comment = re.sub(p, '', comment, flags=re.IGNORECASE)
 
-        # ✅ شيل أي بقايا من كلمة امضاء أو حروف ناقصة
-        comment = post_clean_comment(comment)
-
         df.at[index, 'Delivery Comments'] = re.sub(r'\s+', ' ', comment).strip()
 
-        # ===== Pricing Logic =====
+        # =====================================================
+        # Pricing Logic - لكل Agent pricing_logic الخاص بيه
+        # =====================================================
         if agent_id in allowed_agents and current_prod in pricing_logic:
-            new_info = (
-                pricing_logic_250610[current_prod]
-                if agent_id == '250610'
-                else pricing_logic[current_prod]
-            )
+            if agent_id == '250610':
+                # استخدم الـ pricing_logic الخاص بـ 250610
+                new_info = pricing_logic_250610[current_prod]
+            else:
+                # استخدم الـ pricing_logic العادي لباقي الأجنتات
+                new_info = pricing_logic[current_prod]
+            
             df.at[index, 'Product'] = new_info['new_code']
             if 'Total Amount' in df.columns:
                 df.at[index, 'Total Amount'] = new_info['price']
@@ -346,22 +309,17 @@ def process_excel(uploaded_file):
         # التأكد من نقل ID Number
         if 'Id' in df.columns:
             df.at[index, 'ID Number'] = df.at[index, 'Id']
-
-    # ✅ بره الـ loop - بس على الصفوف اللي فاضية فعلاً
-    if 'GP Code' in df.columns:
-        df['GP Code'] = df['GP Code'].apply(
-            lambda x: '250' if str(x).strip() == '' else x
-        )
-    if 'Parent Code' in df.columns:
-        df['Parent Code'] = df['Parent Code'].apply(
-            lambda x: '004' if str(x).strip() == '' else x
-        )
+        # =====================================================
+        # ملء GP Code و Parent Code لو فاضي – آخر خطوة
+        # =====================================================
+        for col, default_val in [('GP Code', '250'), ('Parent Code', '004')]:
+            if col in df.columns:
+                df[col] = df[col].fillna('').replace('', default_val)
 
     return df
 
-
 # =====================================================
-# Main UI Control
+# 6. Main UI Control
 # =====================================================
 if not st.session_state.logged_in:
     login_page()
@@ -389,7 +347,7 @@ else:
                 out = BytesIO()
                 with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
                     df.to_excel(writer, index=False, sheet_name='Sheet1')
-                    workbook  = writer.book
+                    workbook = writer.book
                     worksheet = writer.sheets['Sheet1']
                     red_format = workbook.add_format({'bg_color': '#FFC7CE'})
                     if 'Mobile' in df.columns:
@@ -399,34 +357,34 @@ else:
                                 worksheet.write(row_num, col_idx, str(value).strip(), red_format)
                 return out.getvalue()
 
-            # أعمدة كل شيت
+            # تعريف الأعمدة المطلوبة لكل نوع
             ren_columns = [
-                "Card Holder Name", "Address", "Mobile", "Home Phone",
-                "Office Phone1", "Office Phone2", "Fax Number", "E-Mail", "Birth Day",
-                "Delivery Date", "Delivery Time", "Agent",
-                "Delivery Comments", "Call Date", "District",
-                "Gender", "Product", "Bonus Months",
-                "Card Number", "Confirmation Agent",
-                "Alico Name", "ID Number"
+                "Card Holder Name","Address","Mobile","Home Phone",
+                "Office Phone1","Office Phone2","Fax Number","E-Mail","Birth Day",
+                "Delivery Date","Delivery Time","Agent",
+                "Delivery Comments","Call Date","District",
+                "Gender","Product","Bonus Months",
+                "Card Number","Confirmation Agent",
+                "Alico Name","ID Number"
             ]
 
             new_columns = [
-                "Card Holder Name", "Address", "Mobile", "Home Phone",
-                "Office Phone1", "Office Phone2", "Fax Number", "E-Mail",
-                "Birth Day", "Delivery Date", "Delivery Time", "Agent",
-                "Delivery Comments", "GP Code", "Parent Code",
-                "Call Date", "District", "Gender", "Product",
-                "Bonus Months", "Confirmation Agent",
-                "ID Number", "Alico Name"
+                "Card Holder Name","Address","Mobile","Home Phone",
+                "Office Phone1","Office Phone2","Fax Number","E-Mail",
+                "Birth Day","Delivery Date","Delivery Time","Agent",
+                "Delivery Comments","GP Code","Parent Code",
+                "Call Date","District","Gender","Product",
+                "Bonus Months","Confirmation Agent",
+                "ID Number","Alico Name"
             ]
 
             df_ren = result_df[
-                result_df["Card Number"].notna() &
+                result_df["Card Number"].notna() & 
                 (result_df["Card Number"].astype(str).str.strip() != "")
             ].reindex(columns=ren_columns)
 
             df_new = result_df[
-                result_df["Card Number"].isna() |
+                result_df["Card Number"].isna() | 
                 (result_df["Card Number"].astype(str).str.strip() == "")
             ].reindex(columns=new_columns)
 
@@ -472,7 +430,4 @@ else:
                     key="btn_ren"
                 )
 
-st.markdown(
-    "<div class='footer'>🚀 Enterprise Excel Automation Dashboard</div>",
-    unsafe_allow_html=True
-)
+st.markdown("<div class='footer'>🚀 Enterprise Excel Automation Dashboard</div>", unsafe_allow_html=True)
