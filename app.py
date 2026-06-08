@@ -220,73 +220,60 @@ def process_excel(uploaded_file):
             comment = re.sub(pattern_to_remove, '', comment, flags=re.IGNORECASE).strip()
 
         # -------------------------------------------------------
-        # كل الباترنات دي بتشتغل على comment الأصلي (فيه مسافات)
-        # ✅ \s* بين كل كلمة عشان يتعامل مع المسافات الزيادة
+        # ✅ كل الـ checks بتدور على "امضاء + الاسم" في comment الأصلي
+        # مش بتدور على الاسم في أي مكان - عشان ميتطابقش مع أسماء في النص
         # -------------------------------------------------------
 
-        # 1) مروه / مروة + محمد (الأكثر تحديداً أولاً)
-        if confirmation_agent is None and any(
-            name in normalized for name in ['مروهمحمد', 'مروةمحمد', 'مورهمحمد']
+        # الباترن الأساسي لـ امضاء (قبل أي اسم)
+        SIG = r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s+)'
+
+        # 1) مروه / مروة + محمد
+        if confirmation_agent is None and re.search(
+            SIG + r'(مرو[هة]|موره)\s*محمد', comment, re.IGNORECASE
         ):
             code = '004' if agent_id == '250602' else '034'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(مرو[هة]|موره)\s*محمد'
-            )
+            set_agent_and_clean(code, SIG + r'(مرو[هة]|موره)\s*محمد')
 
-        # 2) مروه / مروة + مصطفى (قبل مروه لوحدها عشان أكثر تحديداً)
-        if confirmation_agent is None and (
-            'مروهمصطفى' in normalized or 'مروةمصطفى' in normalized
+        # 2) مروه / مروة + مصطفى (قبل مروه لوحدها)
+        if confirmation_agent is None and re.search(
+            SIG + r'مرو[هة]\s*مصطف[يى]', comment, re.IGNORECASE
         ):
             code = '004' if agent_id == '201171' else '016'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?مرو[هة]\s*مصطف[يى]'
-            )
+            set_agent_and_clean(code, SIG + r'مرو[هة]\s*مصطف[يى]')
 
         # 3) مروه / مروة (بدون محمد أو مصطفى)
-        if confirmation_agent is None and ('مروه' in normalized or 'مروة' in normalized):
+        if confirmation_agent is None and re.search(
+            SIG + r'مرو[هة]', comment, re.IGNORECASE
+        ):
             code = '004' if agent_id == '250602' else '034'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?مرو[هة]'
-            )
+            set_agent_and_clean(code, SIG + r'مرو[هة]')
 
         # 4) يوسف
-        if confirmation_agent is None and 'يوسف' in normalized:
+        if confirmation_agent is None and re.search(
+            SIG + r'يوسف(\s*ماجد)?', comment, re.IGNORECASE
+        ):
             code = '004' if agent_id == '250920' else '025'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?يوسف(\s*ماجد)?'
-            )
+            set_agent_and_clean(code, SIG + r'يوسف(\s*ماجد)?')
 
-        # 4) مريهان / ماريهان / مايهان
-        if confirmation_agent is None and any(
-            name in normalized for name in ['مريهان', 'ماريهان', 'مايهان']
+        # 5) مريهان / ماريهان / مايهان
+        if confirmation_agent is None and re.search(
+            SIG + r'(ماريهان|مريهان|مايهان)', comment, re.IGNORECASE
         ):
             code = '004' if agent_id == '201120' else '050'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ماريهان|مريهان|مايهان)'
-            )
+            set_agent_and_clean(code, SIG + r'(ماريهان|مريهان|مايهان)')
 
-        # 6) فاطمه / فاطمة محمود / سعداوي
-        if confirmation_agent is None and any(
-            word in normalized for word in ['فاطمهمحمود', 'فاطمةمحمود', 'فاطمهمسعداوي', 'فاطمهسعداوي',
-                                             'فاطمةمسعداوي', 'فاطمةسعداوي']
+        # 6) فاطمه / فاطمة + محمود / سعداوي
+        if confirmation_agent is None and re.search(
+            SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])', comment, re.IGNORECASE
         ):
             code = '004' if agent_id == '250610' else '018'
-            set_agent_and_clean(
-                code,
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])'
-            )
+            set_agent_and_clean(code, SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])')
 
         # 7) ساره احمد
-        if confirmation_agent is None and re.search(r'سار[هةا]*\s*احمد', normalized):
-            set_agent_and_clean(
-                '017',
-                r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?سار[هةا]*\s*احمد'
-            )
+        if confirmation_agent is None and re.search(
+            SIG + r'سار[هةا]*\s*احمد', comment, re.IGNORECASE
+        ):
+            set_agent_and_clean('017', SIG + r'سار[هةا]*\s*احمد')
 
         # 8) امضاء السيلز / امضائي (بعد الأسماء المحددة)
         if confirmation_agent is None:
