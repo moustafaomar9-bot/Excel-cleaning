@@ -72,7 +72,7 @@ def normalize_arabic(text):
 def post_clean_comment(comment):
     """
     شيل أي بقايا من كلمة 'امضاء' بعد معالجة الكونفيرم:
-    - امضاء + حرف/كلمة ≤3 حروف عربية (جزء ناقص من امضاء)
+    - amda + حرف/كلمة ≤3 حروف عربية (جزء ناقص من امضاء)
     - امضاء لوحدها
     """
     comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
@@ -226,6 +226,11 @@ def process_excel(uploaded_file):
 
         # الباترن الأساسي لـ امضاء - بيتجاهل / - _ | أو مسافات بعد امضاء
         SIG = r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?[\s/\\|_\-]*)'
+
+        # 0) إضافة تامر أبو السباع (كود 013) - يتعامل مع "تامر ابو السباع من امضاء" أو "امضاء تامر ابو السباع"
+        tamer_pattern = r'(تامر\s*أ?بو\s*السباع\s*من\s*' + SIG + r'|' + SIG + r'تامر\s*أ?بو\s*السباع)'
+        if confirmation_agent is None and re.search(tamer_pattern, comment, re.IGNORECASE):
+            set_agent_and_clean('013', tamer_pattern)
 
         # 1) مروه / مروة + محمد
         if confirmation_agent is None and re.search(
