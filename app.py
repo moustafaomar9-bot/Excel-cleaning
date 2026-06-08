@@ -69,6 +69,17 @@ def normalize_arabic(text):
     text = re.sub(r'[^\u0600-\u06FF]', '', text)
     return text
 
+def post_clean_comment(comment):
+    """
+    شيل أي بقايا من كلمة 'امضاء' بعد معالجة الكونفيرم:
+    - امضاء + حرف/كلمة ≤3 حروف عربية (جزء ناقص من امضاء)
+    - امضاء لوحدها
+    """
+    comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
+    comment = re.sub(r'\bا\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
+    comment = re.sub(r'\s+', ' ', comment).strip()
+    return comment
+
 # =====================================================
 # Core Processing Logic
 # =====================================================
@@ -310,6 +321,9 @@ def process_excel(uploaded_file):
         # Advanced Cleaning
         for p in advanced_cleaning:
             comment = re.sub(p, '', comment, flags=re.IGNORECASE)
+
+        # ✅ شيل أي بقايا من كلمة امضاء أو حروف ناقصة
+        comment = post_clean_comment(comment)
 
         df.at[index, 'Delivery Comments'] = re.sub(r'\s+', ' ', comment).strip()
 
