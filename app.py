@@ -159,8 +159,8 @@ def process_excel(uploaded_file):
         comment = '' if pd.isna(row.get('Delivery Comments')) else str(row.get('Delivery Comments')).strip()
         comment = comment.replace("'", "")
 
-        agent_id     = sensitive_values.get('Agent', '')
-        current_prod = str(row.get('Product', '')).strip()
+        agent_id       = sensitive_values.get('Agent', '')
+        current_prod   = str(row.get('Product', '')).strip()
         sup_source_val = str(row.get('Sup Data Source Type', '')).strip()
 
         # ===== Alico Name + GP Code + Parent Code =====
@@ -169,9 +169,9 @@ def process_excel(uploaded_file):
         else:
             apply_keywords = r'(apply|ابلاى|ابلاي|rec\s*apply|rec\s*app)'
             if re.search(apply_keywords, comment, re.IGNORECASE):
-                df.at[index, 'Alico Name']   = 'Apply'
-                df.at[index, 'GP Code']      = '355'
-                df.at[index, 'Parent Code']  = '006'
+                df.at[index, 'Alico Name']  = 'Apply'
+                df.at[index, 'GP Code']     = '355'
+                df.at[index, 'Parent Code'] = '006'
                 comment = re.sub(apply_keywords, '', comment, flags=re.IGNORECASE).strip()
             else:
                 df.at[index, 'Alico Name']  = 'Rec'
@@ -208,8 +208,17 @@ def process_excel(uploaded_file):
 
         SIG = r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?[\s/\\|_\-]*)'
 
-        # 0) تامر أبو السباع
-        tamer_pattern = r'(تامر\s*أ?بو\s*السباع\s*من\s*' + SIG + r'|' + SIG + r'تامر\s*أ?بو\s*السباع)'
+        # -------------------------------------------------------
+        # 0) تامر ابو السباع - ✅ pattern محسّن يغطي كل الأخطاء الإملائية
+        # -------------------------------------------------------
+        tamer_pattern = (
+            r'(تم\s*عمل\s*كونفيرم\s*)?'            # اختياري: تم عمل كونفيرم
+            r'(ا\.?م\.?ض\.?ا\.?ء?[\s/\\|_\-]*)?'   # اختياري: امضاء بأشكالها
+            r'تامر\s*'                               # تامر
+            r'(أ|ا)?بو\s*'                           # ابو / أبو (همزة اختيارية + مسافة اختيارية)
+            r'(ال)?'                                  # ال اختيارية
+            r'[سص]باع'                               # السباع / الصباع (خطأ إملائي محتمل)
+        )
         if confirmation_agent is None and re.search(tamer_pattern, comment, re.IGNORECASE):
             set_agent_and_clean('013', tamer_pattern)
 
@@ -328,7 +337,7 @@ def process_excel(uploaded_file):
             lambda x: '004' if str(x).strip() == '' else x
         )
 
-    # ✅ ESP3 override - بيتغلب على أي قيمة اتحطت قبله
+    # ✅ ESP3 override
     if 'Product' in df.columns and 'GP Code' in df.columns and 'Parent Code' in df.columns:
         esp3_mask = df['Product'].astype(str).str.strip() == 'ESP3'
         df.loc[esp3_mask, 'GP Code']     = '133'
