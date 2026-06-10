@@ -70,11 +70,6 @@ def normalize_arabic(text):
     return text
 
 def post_clean_comment(comment):
-    """
-    شيل أي بقايا من كلمة 'امضاء' بعد معالجة الكونفيرم:
-    - amda + حرف/كلمة ≤3 حروف عربية (جزء ناقص من امضاء)
-    - امضاء لوحدها
-    """
     comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
     comment = re.sub(r'\bا\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
     comment = re.sub(r'\s+', ' ', comment).strip()
@@ -112,7 +107,6 @@ def process_excel(uploaded_file):
                 if pd.notna(x) and str(x).strip() != "" else ""
             )
 
-    # ✅ agents_rules - مرتبة من الأكثر تحديداً للأقل
     agents_rules = [
         (r'(تم\s*عمل\s*)?(كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ميس|مس)?\s*نشو[هةويى]\s*(بدر)?', '060'),
         (r'(ا.?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)ا?سار[هةا]*(\s+احمد)?',                      '017'),
@@ -130,7 +124,6 @@ def process_excel(uploaded_file):
         r'n\s*o'
     ]
 
-    # Pricing Logic العادي (باقي الأجنتات)
     pricing_logic = {
         'XCV13': {'new_code': 'YCC13', 'price': '600'},
         'XVC13': {'new_code': 'YCC13', 'price': '600'},
@@ -140,7 +133,6 @@ def process_excel(uploaded_file):
         'EVO13': {'new_code': 'YCE13', 'price': '500'}
     }
 
-    # Pricing Logic خاص بـ 250610
     pricing_logic_250610 = {
         'XCV13': {'new_code': 'APT13', 'price': '600'},
         'XVC13': {'new_code': 'APT13', 'price': '600'},
@@ -154,23 +146,20 @@ def process_excel(uploaded_file):
 
     for index, row in df.iterrows():
 
-        # حفظ البيانات الحساسة
         sensitive_values = {
             col: str(row[col]).strip() if col in df.columns else ''
             for col in sensitive_columns
         }
 
-        # تنظيف أعمدة التليفون
         phone_columns = ['Mobile', 'Home Phone', 'Office Phone1', 'Office Phone2', 'Fax Number']
         for col in phone_columns:
             if col in df.columns and pd.notna(row.get(col)):
                 df.at[index, col] = str(row.get(col)).strip()
 
-        # استخراج الكومنت وتنظيفه
         comment = '' if pd.isna(row.get('Delivery Comments')) else str(row.get('Delivery Comments')).strip()
         comment = comment.replace("'", "")
 
-        agent_id   = sensitive_values.get('Agent', '')
+        agent_id     = sensitive_values.get('Agent', '')
         current_prod = str(row.get('Product', '')).strip()
         sup_source_val = str(row.get('Sup Data Source Type', '')).strip()
 
@@ -208,26 +197,18 @@ def process_excel(uploaded_file):
 
         # =====================================================
         # Confirmation Agent Logic
-        # ✅ بنستخدم متغير واحد ونوقف عند أول match
         # =====================================================
         confirmation_agent = None
         normalized = normalize_arabic(comment)
 
         def set_agent_and_clean(agent_code, pattern_to_remove):
-            """يحط الكود ويشيل الباترن من الكومنت"""
             nonlocal comment, confirmation_agent
             confirmation_agent = agent_code
             comment = re.sub(pattern_to_remove, '', comment, flags=re.IGNORECASE).strip()
 
-        # -------------------------------------------------------
-        # ✅ كل الـ checks بتدور على "امضاء + الاسم" في comment الأصلي
-        # مش بتدور على الاسم في أي مكان - عشان ميتطابقش مع أسماء في النص
-        # -------------------------------------------------------
-
-        # الباترن الأساسي لـ امضاء - بيتجاهل / - _ | أو مسافات بعد امضاء
         SIG = r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?[\s/\\|_\-]*)'
 
-        # 0) إضافة تامر أبو السباع (كود 013) - يتعامل مع "تامر ابو السباع من امضاء" أو "امضاء تامر ابو السباع"
+        # 0) تامر أبو السباع
         tamer_pattern = r'(تامر\s*أ?بو\s*السباع\s*من\s*' + SIG + r'|' + SIG + r'تامر\s*أ?بو\s*السباع)'
         if confirmation_agent is None and re.search(tamer_pattern, comment, re.IGNORECASE):
             set_agent_and_clean('013', tamer_pattern)
@@ -239,7 +220,7 @@ def process_excel(uploaded_file):
             code = '004' if agent_id == '250602' else '034'
             set_agent_and_clean(code, SIG + r'(مرو[هة]|موره)\s*محمد')
 
-        # 2) مروه / مروة + مصطفى (قبل مروه لوحدها)
+        # 2) مروه / مروة + مصطفى
         if confirmation_agent is None and re.search(
             SIG + r'مرو[هة]\s*مصطف[يى]', comment, re.IGNORECASE
         ):
@@ -274,26 +255,25 @@ def process_excel(uploaded_file):
             code = '004' if agent_id == '250610' else '018'
             set_agent_and_clean(code, SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])')
 
-        # 7) ساره احمد (بيقبل اساره كخطأ إملائي)
+        # 7) ساره احمد
         if confirmation_agent is None and re.search(
             SIG + r'ا?سار[هةا]*\s*احمد', comment, re.IGNORECASE
         ):
             set_agent_and_clean('017', SIG + r'ا?سار[هةا]*\s*احمد')
 
-        # 8) امضاء السيلز / امضائي (بعد الأسماء المحددة)
+        # 8) امضاء السيلز / امضائي
         if confirmation_agent is None:
             sales_signature_pattern = r'(امضائي|أمضائي|امضائى|أمضائى|بأمضتى|امضاء\s*السيلز|أمضاء\s*السيلز)'
             if re.search(sales_signature_pattern, comment, re.IGNORECASE):
                 set_agent_and_clean('004', sales_signature_pattern)
 
-        # 9) agents_rules - ✅ بتوقف عند أول match
+        # 9) agents_rules
         if confirmation_agent is None:
             for pattern, code in agents_rules:
                 if re.search(pattern, comment, re.IGNORECASE):
                     set_agent_and_clean(code, pattern)
-                    break  # ✅ مهم - وقف بعد أول match
+                    break
 
-        # تطبيق الـ confirmation agent لو اتحدد
         if confirmation_agent is not None:
             df.at[index, 'Confirmation Agent'] = confirmation_agent
 
@@ -314,7 +294,6 @@ def process_excel(uploaded_file):
         for p in advanced_cleaning:
             comment = re.sub(p, '', comment, flags=re.IGNORECASE)
 
-        # ✅ شيل أي بقايا من كلمة امضاء أو حروف ناقصة
         comment = post_clean_comment(comment)
 
         df.at[index, 'Delivery Comments'] = re.sub(r'\s+', ' ', comment).strip()
@@ -348,6 +327,12 @@ def process_excel(uploaded_file):
         df['Parent Code'] = df['Parent Code'].apply(
             lambda x: '004' if str(x).strip() == '' else x
         )
+
+    # ✅ ESP3 override - بيتغلب على أي قيمة اتحطت قبله
+    if 'Product' in df.columns and 'GP Code' in df.columns and 'Parent Code' in df.columns:
+        esp3_mask = df['Product'].astype(str).str.strip() == 'ESP3'
+        df.loc[esp3_mask, 'GP Code']     = '133'
+        df.loc[esp3_mask, 'Parent Code'] = '100'
 
     return df
 
@@ -391,7 +376,6 @@ else:
                                 worksheet.write(row_num, col_idx, str(value).strip(), red_format)
                 return out.getvalue()
 
-            # أعمدة كل شيت
             ren_columns = [
                 "Card Holder Name", "Address", "Mobile", "Home Phone",
                 "Office Phone1", "Office Phone2", "Fax Number", "E-Mail", "Birth Day",
