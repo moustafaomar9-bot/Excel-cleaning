@@ -70,7 +70,7 @@ def normalize_arabic(text):
     return text
 
 def post_clean_comment(comment):
-    comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]+(?=\s|$)', '', comment, flags=re.IGNORECASE)
+    comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
     comment = re.sub(r'\bا\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
     comment = re.sub(r'\s+', ' ', comment).strip()
     return comment
