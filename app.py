@@ -70,8 +70,9 @@ def normalize_arabic(text):
     return text
 
 def post_clean_comment(comment):
-    comment = re.sub(r'ا\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]{1,3}(?=\s|$)', '', comment, flags=re.IGNORECASE)
-    comment = re.sub(r'\bا\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
+    # دعم إمضاء بالهمزات ومسح الاسم الذي يليها مهما كان طوله لمنع بقاء أسماء معلقة
+    comment = re.sub(r'[اأإ]\.?م\.?ض\.?ا\.?ء?\s+[\u0600-\u06FF]+(?=\s|$)', '', comment, flags=re.IGNORECASE)
+    comment = re.sub(r'\b[اأإ]\.?م\.?ض\.?ا\.?ء?\b', '', comment, flags=re.IGNORECASE)
     comment = re.sub(r'\s+', ' ', comment).strip()
     return comment
 
@@ -108,11 +109,11 @@ def process_excel(uploaded_file):
             )
 
     agents_rules = [
-        (r'(تم\s*عمل\s*)?(كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?\s*)?(ميس|مس)?\s*نشو[هةويى]\s*(بدر)?', '060'),
-        (r'(ا.?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)ا?سار[هةا]*(\s+احمد)?',                      '017'),
-        (r'(ا.?م.?ض.?ا.?ء?\s*)ند[يىه]\s*مصطف[يى]',                                          '004'),
-        (r'(أمضاء|امضاء)\s+ند[ىيه]',                                                          '004'),
-        (r'(أمضاء|امضاء)\s+خلود',                                                             '004'),
+        (r'(تم\s*عمل\s*)?(كونفيرم\s*)?([اأإ].?م.?ض.?ا.?ء?\s*)?(ميس|مس)?\s*نشو[هةويى]\s*(بدر)?', '060'),
+        (r'([اأإ].?م.?ض.?ا.?ء?\s*|مضاء\s*|أمضاء\s*)[اأإ]?سار[هةا]*(\s+احمد)?',                      '017'),
+        (r'([اأإ].?م.?ض.?ا.?ء?\s*)ند[يىه]\s*مصطف[يى]',                                          '004'),
+        (r'([أإا]مضاء|[أإا]مضاء)\s+ند[ىيه]',                                                       '004'),
+        (r'([أإا]مضاء|[أإا]مضاء)\s+خلود',                                                             '004'),
         (r'NADA|nada',                                                                         '004'),
     ]
 
@@ -206,17 +207,13 @@ def process_excel(uploaded_file):
             confirmation_agent = agent_code
             comment = re.sub(pattern_to_remove, '', comment, flags=re.IGNORECASE).strip()
 
-        SIG = r'(تم\s*عمل\s*كونفيرم\s*)?(ا.?م.?ض.?ا.?ء?[\s/\\|_\-]*)'
+        # تم تعديل النمط لدعم الألف بكل أشكالها (إ / أ / ا) للـ إمضاء والـ كونفيرم
+        SIG = r'(تم\s*عمل\s*[كك]ونفيرم\s*)?([اأإ].?م.?ض.?ا.?ء?[\s/\\|_\-]*)'
 
         # -------------------------------------------------------
-        # 0) تامر ابو السباع - ✅ ابو السباع اختيارية - تامر لوحده كافي
+        # 0) تامر ابو السباع - ✅ تعديل لدعم كل أنواع الهمزات والمسح الشامل
         # -------------------------------------------------------
-        tamer_pattern = (
-            r'(تم\s*عمل\s*كونفيرم\s*)?'            # اختياري: تم عمل كونفيرم
-            r'(ا\.?م\.?ض\.?ا\.?ء?[\s/\\|_\-]*)?'   # اختياري: امضاء بأشكالها
-            r'تامر'                                  # تامر (إلزامي)
-            r'(\s*(أ|ا)?بو\s*(ال)?[سص]باع)?'        # اختياري: ابو السباع بأشكالها
-        )
+        tamer_pattern = SIG + r'تامر(\s*([أإا])?بو\s*(ال)?[سص]باع)?'
         if confirmation_agent is None and re.search(tamer_pattern, comment, re.IGNORECASE):
             set_agent_and_clean('013', tamer_pattern)
 
@@ -255,22 +252,21 @@ def process_excel(uploaded_file):
             code = '004' if agent_id == '201120' else '050'
             set_agent_and_clean(code, SIG + r'(ماريهان|مريهان|مايهان)')
 
-        # 6) فاطمه / فاطمة + محمود / سعداوي
-        if confirmation_agent is None and re.search(
-            SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])', comment, re.IGNORECASE
-        ):
+        # 6) فاطمه / فاطمة (تعديل: جعل اسم الجد اختيارياً ليلقط "امضاء فاطمه" لوحدها)
+        fatma_pattern = SIG + r'فاطم[هة](\s*(محمود|مسعداو[يى]|سعداو[يى]))?'
+        if confirmation_agent is None and re.search(fatma_pattern, comment, re.IGNORECASE):
             code = '004' if agent_id == '250610' else '018'
-            set_agent_and_clean(code, SIG + r'فاطم[هة]\s*(محمود|مسعداو[يى]|سعداو[يى])')
+            set_agent_and_clean(code, fatma_pattern)
 
         # 7) ساره احمد
         if confirmation_agent is None and re.search(
-            SIG + r'ا?سار[هةا]*\s*احمد', comment, re.IGNORECASE
+            SIG + r'[اأإ]?سار[هةا]*\s*احمد', comment, re.IGNORECASE
         ):
-            set_agent_and_clean('017', SIG + r'ا?سار[هةا]*\s*احمد')
+            set_agent_and_clean('017', SIG + r'[اأإ]?سار[هةا]*\s*احمد')
 
         # 8) امضاء السيلز / امضائي
         if confirmation_agent is None:
-            sales_signature_pattern = r'(امضائي|أمضائي|امضائى|أمضائى|بأمضتى|امضاء\s*السيلز|أمضاء\s*السيلز)'
+            sales_signature_pattern = r'([أإا]مضائي|[أإا]مضائى|بأمضتى|[أإا]مضاء\s*السيلز)'
             if re.search(sales_signature_pattern, comment, re.IGNORECASE):
                 set_agent_and_clean('004', sales_signature_pattern)
 
